@@ -6,21 +6,27 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.17.2",
-    "asyncpg>=0.31.0",
     "celery[redis]>=5.6.0",
     "factory-boy>=3.3.3",
     "fastapi>=0.125.0",
     "fastapi-guard>=4.2.2",
     "greenlet>=3.3.0",
     "httpx>=0.28.1",
-    "psycopg[binary]>=3.3.2",
+    "libsql>=0.1.11",
+    "lxml>=5.0.0",
+    "pandas>=2.2.0",
+    "pyarrow>=15.0.0",
     "pydantic-ai-slim[anthropic,bedrock]>=1.35.0",
     "pydantic-settings>=2.12.0",
     "rich>=14.2.0",
+    "scipy>=1.14.0",
     "sentry-sdk[fastapi,sqlalchemy]>=2.48.0",
     "sqlalchemy>=2.0.45",
+    "sqlalchemy-libsql>=0.2.0",
+    "sqlmodel>=0.0.22",
     "structlog>=25.5.0",
     "uvicorn[standard]>=0.38.0",
+    "yfinance>=0.2.40",
 ]
 
 [dependency-groups]
@@ -32,10 +38,18 @@ dev = [
     "pytest-mock>=3.14.1",
 ]
 
+[tool.alembic]
+script_location = "alembic"
+prepend_sys_path = "alembic/.."
+
+file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
+
 [tool.ruff]
 line-length = 120
 
 [tool.pytest.ini_options]
+pythonpath = [ "." ]
+testpaths = ["tests"]
 filterwarnings = [
     "ignore:builtin type .* has no __module__ attribute:DeprecationWarning",
     "ignore:datetime.datetime.utcnow\\(\\) is deprecated:DeprecationWarning:botocore",

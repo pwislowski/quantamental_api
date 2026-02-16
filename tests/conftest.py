@@ -1,18 +1,15 @@
+import sys
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Generator
+from unittest.mock import MagicMock
+
 import pytest
 import pytest_asyncio
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-from fastapi import HTTPException, FastAPI
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 from pytest_mock import MockerFixture
-
-# add the parent directory to the Python path so we can import from app #
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 
 ################################################################################
 # mock rate limiter #
@@ -25,7 +22,7 @@ sys.modules["app.core.rate_limiter"] = MagicMock(limiter=mock_limiter)
 
 
 ################################################################################
-# mock psycopg and pgqueuer #
+# mock pgqueuer #
 ################################################################################
 
 # mock pgqueuer components
@@ -53,66 +50,61 @@ from app.main import app  # noqa: E402
 
 app.router.lifespan_context = mock_lifespan
 
-from app.core.db import get_db, Base  # noqa: E402
-from app.models.user.dependencies import auth_user  # noqa: E402
-from app.models.user.models import User  # noqa: E402
+from app.core.db import Base, get_db  # noqa: E402
 
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/postgres"
 TEST_JWT_SECRET_KEY = "test-jwt-secret-key"
 TEST_JWT_ALGORITHM = "HS256"
 MOCK_USER_ID = "4ef80032-9b19-4948-8f1f-69758f35a70a"
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+def _make_sqlite_engine():
+    """Create a shared in-memory SQLite engine safe for cross-thread use."""
+    engine = create_engine(
+        "sqlite:///file:test.db?mode=memory&cache=shared&uri=true",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
 
-    # create all tables using SQLAlchemy Base metadata #
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Enable WAL mode and foreign keys for SQLite
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
+    return engine
+
+
+@pytest.fixture(scope="function")
+def test_engine():
+    engine = _make_sqlite_engine()
+    Base.metadata.create_all(bind=engine)
     yield engine
-
-    # clean up: drop all tables after test session #
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-    await engine.dispose()
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    # create new async session for this test #
-    AsyncSessionLocal = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
+@pytest.fixture(scope="function")
+def test_session(test_engine) -> Generator[Session, None, None]:
+    SessionLocal = sessionmaker(
+        bind=test_engine,
         expire_on_commit=False,
         autoflush=False,
     )
 
-    async with AsyncSessionLocal() as session:
-        yield session
-        await session.rollback()
+    session = SessionLocal()
+    yield session
+    session.rollback()
+    session.close()
 
 
 @pytest_asyncio.fixture(scope="function")
 async def client(test_session) -> AsyncGenerator[AsyncClient, None]:
-    async def override_get_db():
+    def override_get_db():
         yield test_session
-
-    async def mock_auth_user():
-        from sqlalchemy import select
-
-        result = await test_session.execute(select(User).where(User.id == MOCK_USER_ID))
-        user = result.scalar_one_or_none()
-        if user:
-            return user  # Return ORM User model directly
-        else:
-            raise HTTPException(status_code=401, detail="User not found")
 
     # override the FastAPI dependency injection #
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[auth_user] = mock_auth_user
 
     host, port = "127.0.0.1", "9000"
     async with AsyncClient(
@@ -128,7 +120,7 @@ async def client(test_session) -> AsyncGenerator[AsyncClient, None]:
 async def unauthorized_client(test_session, mock_sync_queries) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client without auth override - tests unauthorized access."""
 
-    async def override_get_db():
+    def override_get_db():
         yield test_session
 
     # only override database, not auth
@@ -146,7 +138,6 @@ async def unauthorized_client(test_session, mock_sync_queries) -> AsyncGenerator
 @pytest.fixture(scope="function")
 def mock_sync_queries():
     """provide mock sync queries for tests"""
-    # return the mock_sync_queries object created at module level
     mock_queries = MagicMock()
     mock_queries.enqueue = MagicMock(return_value="mock-job-id")
     mock_queries.dequeue = MagicMock(return_value=None)
@@ -156,5 +147,8 @@ def mock_sync_queries():
 @pytest.fixture(scope="function", autouse=True)
 def mock_jwt_settings(mocker: MockerFixture):
     """mock JWT settings globally for all tests"""
-    mocker.patch("app.utils.jwt.JWT_SECRET_KEY", TEST_JWT_SECRET_KEY)
-    mocker.patch("app.utils.jwt.JWT_ALGORITHM", TEST_JWT_ALGORITHM)
+    try:
+        mocker.patch("app.utils.jwt.JWT_SECRET_KEY", TEST_JWT_SECRET_KEY)
+        mocker.patch("app.utils.jwt.JWT_ALGORITHM", TEST_JWT_ALGORITHM)
+    except (AttributeError, ModuleNotFoundError):
+        pass  # app.utils.jwt not available (auth removed)

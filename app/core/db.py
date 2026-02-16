@@ -1,13 +1,13 @@
-from typing import AsyncGenerator
+from typing import Generator
 
-from sqlalchemy import MetaData
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlmodel import SQLModel
 
 from app.core.config import database_config
 
-# PostgreSQL naming convention for indexes #
-POSTGRES_INDEXES_NAMING_CONVENTION = {
+# libSQL/SQLite-friendly naming convention for indexes #
+INDEXES_NAMING_CONVENTION = {
     "ix": "%(column_0_label)s_idx",
     "uq": "%(table_name)s_%(column_0_name)s_key",
     "ck": "%(table_name)s_%(constraint_name)s_check",
@@ -15,38 +15,72 @@ POSTGRES_INDEXES_NAMING_CONVENTION = {
     "pk": "%(table_name)s_pkey",
 }
 
-metadata = MetaData(naming_convention=POSTGRES_INDEXES_NAMING_CONVENTION)
-
-engine = create_async_engine(
-    database_config.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
-    echo=False,
-    pool_pre_ping=True,  # test connections before use (handles dropped connections).
-    pool_size=15,  # maximum number of connections in the pool
-    max_overflow=5,  # allow up to 5 additional connections during burst traffic (total: 20)
-    pool_timeout=30,  # timeout after 30 seconds if no connection is available
-    pool_recycle=3600,  # recycle connections after 1 hour to prevent stale connections
-)
+# Update the existing SQLModel.metadata in-place instead of replacing it,
+# so model imports work regardless of order.
+SQLModel.metadata.naming_convention = INDEXES_NAMING_CONVENTION
+metadata = SQLModel.metadata
 
 
-AsyncSessionLocal = async_sessionmaker[AsyncSession](
-    autoflush=False,
-    expire_on_commit=False,
-    bind=engine,
-    class_=AsyncSession,
-)
+def _build_libsql_url(raw_url: str) -> str:
+    url = raw_url.strip()
+
+    if url.startswith("sqlite+libsql://"):
+        base_url = url
+    elif url.startswith("libsql://"):
+        base_url = "sqlite+libsql://" + url[len("libsql://") :]
+    elif url.startswith("https://"):
+        base_url = "sqlite+libsql://" + url[len("https://") :]
+    elif url.startswith("http://"):
+        base_url = "sqlite+libsql://" + url[len("http://") :]
+    else:
+        base_url = f"sqlite+libsql://{url}"
+
+    if "secure=" in base_url:
+        return base_url
+
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}secure=true"
 
 
-# SQLAlchemy declarative base - all ORM models inherit from this #
-class Base(DeclarativeBase):
-    metadata = metadata
+_engine = None
+_sessionmaker = None
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+def get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
+            _build_libsql_url(database_config.DATABASE_URL),
+            echo=False,
+            connect_args={
+                "auth_token": database_config.DATABASE_TOKEN,
+            },
+        )
+    return _engine
+
+
+def get_sessionmaker():
+    global _sessionmaker
+    if _sessionmaker is None:
+        _sessionmaker = sessionmaker(
+            autoflush=False,
+            expire_on_commit=False,
+            bind=get_engine(),
+        )
+    return _sessionmaker
+
+
+# Alias for Alembic / external use
+Base = SQLModel
+
+
+def get_db() -> Generator[Session, None, None]:
+    factory = get_sessionmaker()
+    session = factory()
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
