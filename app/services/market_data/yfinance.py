@@ -81,12 +81,14 @@ class YFinanceProvider:
         log.info("fetching_sp500_instruments")
         try:
             df = _fetch_sp500_table()[["Symbol", "Security", "GICS Sector", "GICS Sub-Industry"]].copy()
-            df = df.rename(columns={
-                "Symbol": "ticker",
-                "Security": "company_name",
-                "GICS Sector": "gics_sector",
-                "GICS Sub-Industry": "gics_sub_industry",
-            })
+            df = df.rename(
+                columns={
+                    "Symbol": "ticker",
+                    "Security": "company_name",
+                    "GICS Sector": "gics_sector",
+                    "GICS Sub-Industry": "gics_sub_industry",
+                }
+            )
             df["ticker"] = df["ticker"].str.replace(".", "-", regex=False)
             return df.to_dict("records")
         except Exception:

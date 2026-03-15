@@ -12,7 +12,9 @@ def get_market_data_provider() -> MarketDataProvider:
 
     cls = _PROVIDERS.get(config.MARKET_DATA_PROVIDER)
     if cls is None:
-        raise ValueError(f"Unknown market data provider: {config.MARKET_DATA_PROVIDER!r}. Choose from: {list(_PROVIDERS)}")
+        raise ValueError(
+            f"Unknown market data provider: {config.MARKET_DATA_PROVIDER!r}. Choose from: {list(_PROVIDERS)}"
+        )
     return CachedMarketDataProvider(cls())
 
 

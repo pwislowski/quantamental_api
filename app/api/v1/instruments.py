@@ -16,10 +16,15 @@ SessionDep = Annotated[Session, Depends(get_db)]
 @router.get("")
 def list_instruments(session: SessionDep) -> dict:
     """Return all active S&P 500 instruments with GICS classification."""
-    instruments = session.execute(
-        select(Instrument).where(col(Instrument.is_active) == True)  # noqa: E712
-        .order_by(col(Instrument.ticker))
-    ).scalars().all()
+    instruments = (
+        session.execute(
+            select(Instrument)
+            .where(col(Instrument.is_active) == True)  # noqa: E712
+            .order_by(col(Instrument.ticker))
+        )
+        .scalars()
+        .all()
+    )
 
     return {
         "items": [

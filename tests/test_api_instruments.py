@@ -78,10 +78,22 @@ async def test_list_instruments_sorted_by_ticker(client, test_session):
 async def test_sync_instruments(client, mocker):
     mock_provider = mocker.MagicMock()
     mock_provider.get_sp500_instruments.return_value = [
-        {"ticker": "AAPL", "company_name": "Apple Inc.", "gics_sector": "Information Technology", "gics_sub_industry": "Tech Hardware"},
-        {"ticker": "MSFT", "company_name": "Microsoft Corp.", "gics_sector": "Information Technology", "gics_sub_industry": "Systems Software"},
+        {
+            "ticker": "AAPL",
+            "company_name": "Apple Inc.",
+            "gics_sector": "Information Technology",
+            "gics_sub_industry": "Tech Hardware",
+        },
+        {
+            "ticker": "MSFT",
+            "company_name": "Microsoft Corp.",
+            "gics_sector": "Information Technology",
+            "gics_sub_industry": "Systems Software",
+        },
     ]
-    mocker.patch("app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider))
+    mocker.patch(
+        "app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider)
+    )
 
     resp = await client.post("/api/instruments/sync")
     assert resp.status_code == 200
@@ -98,9 +110,16 @@ async def test_sync_instruments_deactivates_removed(client, test_session, mocker
 
     mock_provider = mocker.MagicMock()
     mock_provider.get_sp500_instruments.return_value = [
-        {"ticker": "AAPL", "company_name": "Apple Inc.", "gics_sector": "Information Technology", "gics_sub_industry": "Tech Hardware"},
+        {
+            "ticker": "AAPL",
+            "company_name": "Apple Inc.",
+            "gics_sector": "Information Technology",
+            "gics_sub_industry": "Tech Hardware",
+        },
     ]
-    mocker.patch("app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider))
+    mocker.patch(
+        "app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider)
+    )
 
     resp = await client.post("/api/instruments/sync")
     assert resp.status_code == 200
@@ -113,7 +132,9 @@ async def test_sync_instruments_deactivates_removed(client, test_session, mocker
 async def test_sync_instruments_no_data(client, mocker):
     mock_provider = mocker.MagicMock()
     mock_provider.get_sp500_instruments.return_value = []
-    mocker.patch("app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider))
+    mocker.patch(
+        "app.api.v1.instruments.InstrumentSyncService", lambda session: _make_sync_service(session, mock_provider)
+    )
 
     resp = await client.post("/api/instruments/sync")
     assert resp.status_code == 200
@@ -123,4 +144,5 @@ async def test_sync_instruments_no_data(client, mocker):
 
 def _make_sync_service(session, provider):
     from app.services.instrument_sync import InstrumentSyncService
+
     return InstrumentSyncService(session, provider=provider)

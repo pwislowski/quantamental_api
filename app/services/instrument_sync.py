@@ -25,12 +25,16 @@ class InstrumentSyncService:
         current_tickers = {r["ticker"] for r in instruments}
 
         # Soft-deactivate constituents no longer in the index
-        removed = self._session.execute(
-            select(Instrument).where(
-                col(Instrument.is_active) == True,  # noqa: E712
-                col(Instrument.ticker).notin_(current_tickers),
+        removed = (
+            self._session.execute(
+                select(Instrument).where(
+                    col(Instrument.is_active) == True,  # noqa: E712
+                    col(Instrument.ticker).notin_(current_tickers),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for inst in removed:
             inst.is_active = False
             inst.updated_at = now
@@ -45,14 +49,16 @@ class InstrumentSyncService:
                 existing.is_active = True
                 existing.updated_at = now
             else:
-                self._session.add(Instrument(
-                    ticker=record["ticker"],
-                    company_name=record["company_name"],
-                    gics_sector=record.get("gics_sector"),
-                    gics_sub_industry=record.get("gics_sub_industry"),
-                    is_active=True,
-                    updated_at=now,
-                ))
+                self._session.add(
+                    Instrument(
+                        ticker=record["ticker"],
+                        company_name=record["company_name"],
+                        gics_sector=record.get("gics_sector"),
+                        gics_sub_industry=record.get("gics_sub_industry"),
+                        is_active=True,
+                        updated_at=now,
+                    )
+                )
 
         self._session.commit()
         log.info("instrument_sync_complete", synced=len(instruments), deactivated=len(removed))
