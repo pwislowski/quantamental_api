@@ -51,6 +51,8 @@ class Config(BaseSettings):
 
     CORS_ORIGINS: list[str] = []
 
+    MARKET_DATA_PROVIDER: str = "yfinance"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")

@@ -3,6 +3,7 @@ import uuid
 from typing import Callable
 
 from fastapi import HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from guard.middleware import SecurityMiddleware
 from guard.models import SecurityConfig
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -59,14 +60,8 @@ def get_guard_security_config() -> SecurityConfig:
         # auto_ban_duration=3600,
         # HTTPS enforcement
         enforce_https=False,
-        # CORS configuration
-        enable_cors=True,
-        cors_allow_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else ["*"],
-        cors_allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        cors_allow_headers=["*"],
-        cors_allow_credentials=True,
-        cors_expose_headers=["Content-Length", "X-Filename", "X-Request-ID"],
-        cors_max_age=86400,
+        # CORS handled by FastAPI's CORSMiddleware instead
+        enable_cors=False,
         # Block requests from cloud provider IPs
         block_cloud_providers=set(),
         # User agent filtering
@@ -89,7 +84,7 @@ def get_guard_security_config() -> SecurityConfig:
             "frame_options": "DENY",
             "content_type_options": "nosniff",
             "referrer_policy": "strict-origin-when-cross-origin",
-            "cross_origin_resource_policy": "same-origin",
+            "cross_origin_resource_policy": "cross-origin",
         },
     )
 
@@ -99,3 +94,12 @@ def setup_security_middleware(app) -> None:
     app.add_middleware(SecurityMiddleware, config=guard_config)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(LoggingMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else ["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["*"],
+        allow_credentials=True,
+        expose_headers=["Content-Length", "X-Filename", "X-Request-ID"],
+        max_age=86400,
+    )

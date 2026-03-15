@@ -12,5 +12,8 @@ app:
 ruff:
     uv run ruff format
 
-migrate MSG:
-    uv run alembic -c pyproject.toml revision --autogenerate -m {{ MSG }}
+autogen_migrate MSG:
+    uv run alembic -c pyproject.toml revision --autogenerate -m "{{ MSG }}"
+
+migrate:
+    uv run alembic -c pyproject.toml upgrade head

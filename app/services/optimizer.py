@@ -129,7 +129,11 @@ class PortfolioOptimizer:
                 remaining = 1.0 - max_pos * len(locked)
                 if remaining > 0 and free:
                     free_total = sum(free.values())
-                    free = {t: v / free_total * remaining for t, v in free.items()}
+                    if free_total > 0:
+                        free = {t: v / free_total * remaining for t, v in free.items()}
+                    else:
+                        eq = remaining / len(free)
+                        free = {t: eq for t in free}
             w = {**locked, **free}
             return w
 

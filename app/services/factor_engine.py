@@ -3,7 +3,7 @@ import pandas as pd
 import structlog
 from scipy.stats import zscore
 
-from app.services.data_pipeline import MarketDataFetcher
+from app.services.market_data.base import MarketDataProvider
 
 log = structlog.get_logger()
 
@@ -17,7 +17,7 @@ class FactorEngine:
     when calling from async routes.
     """
 
-    def __init__(self, fetcher: MarketDataFetcher):
+    def __init__(self, fetcher: MarketDataProvider):
         self.fetcher = fetcher
 
     def calculate_value_factor(self, price_data: pd.DataFrame, fundamental_data: pd.DataFrame) -> pd.DataFrame:

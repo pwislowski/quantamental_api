@@ -5,7 +5,9 @@ from sqlalchemy import create_engine
 from sqlmodel import SQLModel
 
 # Import model modules so their tables register on SQLModel.metadata for autogenerate
+import app.models.backtest  # noqa: F401
 import app.models.factor  # noqa: F401
+import app.models.instrument  # noqa: F401
 import app.models.portfolio  # noqa: F401
 from alembic import context
 from app.core.config import database_config

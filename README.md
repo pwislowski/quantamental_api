@@ -1,12 +1,6 @@
-# Yet another FastAPI boilerplate
+# Quantamental API
 
-> This project is WIP
-
-Simple FastAPI boilerplate for starting new projects.
-
-
-TODO:
-- Add tests config with factories
-- Add Celery and workers
-- Add session based auth
-- Add healthchecks
+Quantamental is portfolio optimization and risk management platform. Its primary
+task is to allocate capital efficiently with the following strategies:
+risk-parity, mean-variance optimization, or risk tilts. The current universe is
+S&P 500.

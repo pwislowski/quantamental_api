@@ -214,10 +214,6 @@ async def test_calculate_factors(client, mocker):
         index=pd.Index(tickers, name="ticker"),
     )
 
-    mocker.patch("app.api.v1.factors.MarketDataFetcher")
-    mocker.patch("app.services.factor_engine.MarketDataFetcher")
-
-    # Mock the fetcher instance methods
     mock_fetcher_cls = mocker.patch("app.api.v1.factors.MarketDataFetcher")
     mock_fetcher = mock_fetcher_cls.return_value
     mock_fetcher.fetch_price_data.return_value = price_df
